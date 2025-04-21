@@ -1,35 +1,32 @@
-from prefect import flow, task, Task
-# from prefect.task_runners import RayTaskRunner
+import time
 
-"""
-DAG
-E: source_1, source_2, source_3, source_4
-T: transform_1
-L: load_1
-"""
+from prefect import flow, task
+from prefect_ray import RayTaskRunner
 
+
+@task
 def source_task(source):
-    import time
     time.sleep(10)
     print(source)
 
 
 @task
 def transform_task():
+    time.sleep(5)
     print("transformation")
 
 
 @task
 def load_task():
-    pass
+    time.sleep(5)
+    print("load")
 
 
 
-@flow()
+@flow(task_runner=RayTaskRunner)
 def main_flow():
     sources = ["A", "B", "C", "D"]
-    source_task_map = {node: Task(name=f"source_{node}", fn=source_task) for node in sources}
-    source_futures_map = {
-        node: source_task_map[node].submit(node) for node in sources
-    }
-    transform_task.submit(wait_for=source_futures_map.values())    
+    source_futures = [source_task.submit(node) for node in sources]
+    print(source_futures)
+    transform_future = transform_task.submit(wait_for=source_futures)
+    load_task.submit(wait_for=[transform_future])
